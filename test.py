@@ -15,7 +15,8 @@ def main():
     print '========================\n'
     
     # Test gid changing and reloading
-    game.gid = 440250
+    game.gtag = 'app'
+    game.gid = 358040
     
     # Test __str__ and __unicode__
     print unicode(game)
