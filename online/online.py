@@ -97,30 +97,35 @@ class SteamGameOnline(object):
     def description(self):
         r"""Get the short description about this game.
             [Return] string"""
-        return self.__soup.find(r'div', class_ = "game_description_snippet").string.strip()
+        r = self.__soup.find(r'div', class_ = "game_description_snippet")
+        return r.string.strip() if r else '' 
 
     @property
     def recent_user_review(self):
         r"""Get the user review about this game in the last 30 days
             [Return] string"""
         r = self.user_reviews
-        return '{}% of the {} user reviews in the last 30 days are positive.'.format(r[0][0], r[0][1]) if len(r)>1 else None
-
+        return '{}% of the {} user reviews in the last 30 days are positive.'.format(r[0][0], r[0][1]) if r and len(r)>1 else ''
+    
     @property
     def user_reviews(self):
         r"""Get recent and overall user reviews
             [Return] list"""
         result = [i.attrs['data-store-tooltip'] for i in self.__soup.find_all('div', class_='user_reviews_summary_row')]
-        return [(lambda x: [int(x[0][0]),int(x[0][1])])(re.findall(re.compile(r'^(\d.+?)% of the (\d.+?) '), i.replace(',',''))) for i in result]
-
+        if len(result) == 0:
+            return None
+        elif result[0] == 'Need more user reviews to generate a score':
+            return None
+        else:
+            return [(lambda x: [int(x[0][0]),int(x[0][1])])(re.findall(re.compile(r'^(\d.+?)% of the (\d.+?) '), i.replace(',',''))) for i in result]
     
     @property
     def overall_user_review(self):
         r"""Get overall user review about this game
             [Return] string"""
         r = self.user_reviews
-        return '{}% of the {} user reviews for this game are positive.'.format(r[1][0], r[1][1]) if len(r)==2 \
-          else '{}% of the {} user reviews for this game are positive.'.format(r[0][0], r[0][1]) if len(r)==1 else None
+        return '{}% of the {} user reviews for this game are positive.'.format(r[1][0], r[1][1]) if r and len(r)==2 \
+          else '{}% of the {} user reviews for this game are positive.'.format(r[0][0], r[0][1]) if r and len(r)==1 else ''
 
     @property
     def app_tag(self):
@@ -128,7 +133,7 @@ class SteamGameOnline(object):
             [Return] string"""
         return [i.string.strip().encode('utf8') \
                 for i in self.__soup.find_all(r'a', class_ = "app_tag")]
-
+       
     @property
     def developer(self):
         r"""Get the devoloper of this product
@@ -142,6 +147,38 @@ class SteamGameOnline(object):
             [Return] string"""
         pub = self.__soup.find(r'a', href = re.compile(r'^http://store.steampowered.com/search/\?publisher.+?'))
         return pub.string.encode('utf8') if pub else ''
+
+    @property
+    def languages(self):
+        r"""Get the supported languages of this product
+            [Return] list"""
+        return [i.string.strip().encode('utf8') for i in self.__soup.find_all(r'td', class_ = 'ellipsis')]
+
+    @property
+    def original_price(self):
+        r"""Get the original price of this product
+            [Return] string"""
+        if self.__soup.find(r'div', class_ = "discount_original_price"):
+            return self.__soup.find(r'div', class_ = "discount_original_price").string.strip()
+        elif self.__soup.find(r'div', class_ = "game_purchase_price price"):
+            return self.__soup.find(r'div', class_ = "game_purchase_price price").string.strip()
+
+    @property
+    def discount_price(self):
+        r"""Get the dicount price of this product
+            [Return] string"""
+        if self.__soup.find(r'div', class_ = "discount_final_price"):
+            return self.__soup.find(r'div', class_ = "discount_final_price").string.strip()
+        else:
+            return None
+        
+    @property
+    def min_requirements(self):
+        r"""Get the minimum requirements of this game
+            [Return] String"""
+        if self.__soup.find(r'div', class_ = "game_area_sys_req_leftCol"):
+            pass
+    
 
     # ____________________ Override ____________________
     
@@ -166,15 +203,14 @@ class SteamGameOnline(object):
             self.__url = '<Error>'
             if self.__debug: print 'Error tag.'
             self.__status = 3     # Tag error
-            self.__soup = None
+            self.__soup = None0
 
     @__check_status
     def __str__(self):
         r"""Print most properties about game in order
             [Return] string"""
-        def fmt_property(title, content):
-            # inner func to format property to str
-            return '\n%010s: %s'%(title, content)
+        # format property to str
+        fmt_property = lambda title, content: '\n%020s: %s'%(title, content)
         
         info = '[Game Info]'
         info += fmt_property('ID', str(self.__id))
@@ -184,10 +220,18 @@ class SteamGameOnline(object):
         info += fmt_property('Type', self.__get_app_type())
         info += fmt_property('Developer', self.developer)
         info += fmt_property('Publisher', self.publisher)
+        info += fmt_property('Original Price', (self.original_price.encode('utf-8') if not self.__status and self.original_price else 'None'))
+        if self.discount_price and self.__status:
+            info += fmt_property('Discount Price', (self.discount_price.encode('utf-8')))
+        info += fmt_property('Languages', self.languages)
+        info += fmt_property('Recent User Review', self.recent_user_review if not self.__status and self.recent_user_review else '')
+        info += fmt_property('Overall User Review', self.overall_user_review if not self.__status and self.overall_user_review else '')
+        info += fmt_property('Description', self.description.encode('utf-8') if not self.__status and self.description else 'None')
         tag = self.app_tag
         info += fmt_property('Game Tag', (', '.join(tag[:3] if len(tag)>3 else tag) if tag else 'None')\
                 + (', ...' if len(tag)>3 else ''))
-        info += fmt_property('Status', self.status)
+        if self.__debug:
+            info += fmt_property('Status', self.status)
         return info
 
     def __unicode__(self):

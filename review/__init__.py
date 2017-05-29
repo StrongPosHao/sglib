@@ -1,4 +1,6 @@
-from Review import GameReview
+from Review import getReviewsFromTop as getReview
+from Review import printReview as reviewString
+
 
 def test():
     pass
